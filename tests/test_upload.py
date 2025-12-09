@@ -3,7 +3,7 @@ import requests
 
 def test_upload_gedcom():
     """Test that GEDCOM file can be uploaded successfully"""
-    with open("data/family-tree.ged", "rb") as f:
+    with open("gedom-samples/Kennedy.ged", "rb") as f:
         response = requests.post("http://localhost:8001/api/upload", files={"file": f})
     assert response.status_code == 200
     data = response.json()
