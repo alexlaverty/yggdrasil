@@ -11,7 +11,12 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models import Individual, Event, Media
 from schemas.media import MediaUpdateRequest
-from services.storage import minio_client
+from services.storage import (
+    minio_client,
+    get_presigned_url,
+    generate_thumbnail,
+    upload_thumbnail,
+)
 from services.text_extraction import extract_text
 
 router = APIRouter(prefix="/media", tags=["media"])
@@ -21,7 +26,7 @@ router = APIRouter(prefix="/media", tags=["media"])
 async def upload_media(
     file: UploadFile = File(...),
     metadata: str = Form(...),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """Upload media file to MinIO and save metadata to database."""
     try:
@@ -48,20 +53,29 @@ async def upload_media(
         file_path = f"{timestamp}_{filename}"
 
         minio_client.put_object(
-            "media",
-            file_path,
-            io.BytesIO(contents),
-            file_size,
-            content_type=mime_type
+            "media", file_path, io.BytesIO(contents), file_size, content_type=mime_type
         )
+
+        # Generate thumbnail for images
+        thumbnail_path = None
+        if media_type == "image":
+            thumb_result = generate_thumbnail(contents, file_path)
+            if thumb_result:
+                thumb_data, thumb_filename = thumb_result
+                thumbnail_path = upload_thumbnail(
+                    minio_client, "media", thumb_data, thumb_filename
+                )
 
         media = Media(
             filename=filename,
             file_path=file_path,
+            thumbnail_path=thumbnail_path,
             media_type=media_type,
             file_size=file_size,
-            media_date=datetime.strptime(media_date, "%Y-%m-%d").date() if media_date else None,
-            description=description
+            media_date=(
+                datetime.strptime(media_date, "%Y-%m-%d").date() if media_date else None
+            ),
+            description=description,
         )
 
         # If event_id is provided, automatically tag all associated people and link to event
@@ -80,7 +94,9 @@ async def upload_media(
                 media.events.append(event)
 
         if individual_ids:
-            individuals = db.query(Individual).filter(Individual.id.in_(individual_ids)).all()
+            individuals = (
+                db.query(Individual).filter(Individual.id.in_(individual_ids)).all()
+            )
             media.individuals = individuals
 
         db.add(media)
@@ -92,12 +108,13 @@ async def upload_media(
             "filename": media.filename,
             "media_type": media.media_type,
             "file_size": media.file_size,
-            "message": "Media uploaded successfully"
+            "message": "Media uploaded successfully",
         }
     except Exception as e:
         db.rollback()
         print(f"Error uploading media: {str(e)}")
         import traceback
+
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -110,10 +127,7 @@ async def get_all_media(db: Session = Depends(get_db)):
     result = []
     for media in media_list:
         tagged_individuals = [
-            {
-                "id": ind.id,
-                "name": f"{ind.first_name} {ind.last_name}"
-            }
+            {"id": ind.id, "name": f"{ind.first_name} {ind.last_name}"}
             for ind in media.individuals
         ]
 
@@ -122,23 +136,29 @@ async def get_all_media(db: Session = Depends(get_db)):
                 "id": evt.id,
                 "event_type": evt.event_type,
                 "event_date": evt.event_date.isoformat() if evt.event_date else None,
-                "place": evt.place
+                "place": evt.place,
             }
             for evt in media.events
         ]
 
-        result.append({
-            "id": media.id,
-            "filename": media.filename,
-            "media_type": media.media_type,
-            "file_size": media.file_size,
-            "media_date": media.media_date.isoformat() if media.media_date else None,
-            "description": media.description,
-            "extracted_text": media.extracted_text,
-            "tagged_individuals": tagged_individuals,
-            "tagged_events": tagged_events,
-            "created_at": media.created_at.isoformat() if media.created_at else None
-        })
+        result.append(
+            {
+                "id": media.id,
+                "filename": media.filename,
+                "media_type": media.media_type,
+                "file_size": media.file_size,
+                "media_date": (
+                    media.media_date.isoformat() if media.media_date else None
+                ),
+                "description": media.description,
+                "extracted_text": media.extracted_text,
+                "tagged_individuals": tagged_individuals,
+                "tagged_events": tagged_events,
+                "created_at": (
+                    media.created_at.isoformat() if media.created_at else None
+                ),
+            }
+        )
 
     return result
 
@@ -152,22 +172,84 @@ async def get_media_file(media_id: int, db: Session = Depends(get_db)):
 
     try:
         response = minio_client.get_object("media", media.file_path)
-        content_type = mimetypes.guess_type(media.filename)[0] or "application/octet-stream"
+        content_type = (
+            mimetypes.guess_type(media.filename)[0] or "application/octet-stream"
+        )
+
+        # Generate ETag from media id and updated_at timestamp
+        etag = f'"{media.id}-{int(media.updated_at.timestamp()) if media.updated_at else 0}"'
 
         return StreamingResponse(
             response,
             media_type=content_type,
             headers={
-                "Content-Disposition": f'inline; filename="{media.filename}"'
-            }
+                "Content-Disposition": f'inline; filename="{media.filename}"',
+                "Cache-Control": "public, max-age=31536000, immutable",
+                "ETag": etag,
+                "Content-Length": str(media.file_size) if media.file_size else None,
+            },
         )
     except Exception as e:
         print(f"Error retrieving media file: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error retrieving file: {str(e)}")
 
 
+@router.get("/{media_id}/thumbnail")
+async def get_media_thumbnail(media_id: int, db: Session = Depends(get_db)):
+    """Retrieve thumbnail for media file (smaller, faster loading)."""
+    media = db.query(Media).filter(Media.id == media_id).first()
+    if not media:
+        raise HTTPException(status_code=404, detail="Media not found")
+
+    # If no thumbnail exists, fall back to original file
+    file_to_serve = media.thumbnail_path or media.file_path
+    content_type = (
+        "image/jpeg"
+        if media.thumbnail_path
+        else (mimetypes.guess_type(media.filename)[0] or "application/octet-stream")
+    )
+
+    try:
+        response = minio_client.get_object("media", file_to_serve)
+        etag = f'"{media.id}-thumb-{int(media.updated_at.timestamp()) if media.updated_at else 0}"'
+
+        return StreamingResponse(
+            response,
+            media_type=content_type,
+            headers={
+                "Content-Disposition": f'inline; filename="thumb_{media.filename}"',
+                "Cache-Control": "public, max-age=31536000, immutable",
+                "ETag": etag,
+            },
+        )
+    except Exception as e:
+        print(f"Error retrieving thumbnail: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Error retrieving thumbnail: {str(e)}"
+        )
+
+
+@router.get("/{media_id}/url")
+async def get_media_url(media_id: int, db: Session = Depends(get_db)):
+    """Get a presigned URL for direct MinIO access (faster, bypasses API)."""
+    media = db.query(Media).filter(Media.id == media_id).first()
+    if not media:
+        raise HTTPException(status_code=404, detail="Media not found")
+
+    try:
+        url = get_presigned_url(
+            minio_client, "media", media.file_path, expires_hours=24
+        )
+        return {"url": url, "expires_in": "24 hours"}
+    except Exception as e:
+        print(f"Error generating presigned URL: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error generating URL: {str(e)}")
+
+
 @router.put("/{media_id}")
-async def update_media(media_id: int, update_data: MediaUpdateRequest, db: Session = Depends(get_db)):
+async def update_media(
+    media_id: int, update_data: MediaUpdateRequest, db: Session = Depends(get_db)
+):
     """Update media metadata and tagged individuals."""
     media = db.query(Media).filter(Media.id == media_id).first()
     if not media:
@@ -175,13 +257,19 @@ async def update_media(media_id: int, update_data: MediaUpdateRequest, db: Sessi
 
     try:
         if update_data.media_date:
-            media.media_date = datetime.strptime(update_data.media_date, "%Y-%m-%d").date()
+            media.media_date = datetime.strptime(
+                update_data.media_date, "%Y-%m-%d"
+            ).date()
         else:
             media.media_date = None
 
         media.description = update_data.description
 
-        individuals = db.query(Individual).filter(Individual.id.in_(update_data.individual_ids)).all()
+        individuals = (
+            db.query(Individual)
+            .filter(Individual.id.in_(update_data.individual_ids))
+            .all()
+        )
         media.individuals = individuals
 
         db.commit()
@@ -193,12 +281,13 @@ async def update_media(media_id: int, update_data: MediaUpdateRequest, db: Sessi
             "media_date": media.media_date.isoformat() if media.media_date else None,
             "description": media.description,
             "tagged_count": len(media.individuals),
-            "message": "Media updated successfully"
+            "message": "Media updated successfully",
         }
     except Exception as e:
         db.rollback()
         print(f"Error updating media: {str(e)}")
         import traceback
+
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -219,7 +308,9 @@ async def extract_text_from_media(media_id: int, db: Session = Depends(get_db)):
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
         except Exception as e:
-            raise HTTPException(status_code=400, detail=f"Error processing file: {str(e)}")
+            raise HTTPException(
+                status_code=400, detail=f"Error processing file: {str(e)}"
+            )
 
         if extracted_text.strip():
             media.extracted_text = extracted_text
@@ -231,15 +322,18 @@ async def extract_text_from_media(media_id: int, db: Session = Depends(get_db)):
                 "filename": media.filename,
                 "extracted_text": extracted_text,
                 "text_length": len(extracted_text),
-                "message": "Text extracted successfully"
+                "message": "Text extracted successfully",
             }
         else:
-            raise HTTPException(status_code=400, detail="No text could be extracted from the document")
+            raise HTTPException(
+                status_code=400, detail="No text could be extracted from the document"
+            )
 
     except HTTPException:
         raise
     except Exception as e:
         print(f"Error extracting text: {str(e)}")
         import traceback
+
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Error extracting text: {str(e)}")

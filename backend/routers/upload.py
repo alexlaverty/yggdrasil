@@ -18,8 +18,11 @@ async def upload_file(file: UploadFile = File(...)):
 
     # Save to MinIO
     minio_client.put_object(
-        "gedcoms", file_name, io.BytesIO(contents), len(contents),
-        content_type="application/octet-stream"
+        "gedcoms",
+        file_name,
+        io.BytesIO(contents),
+        len(contents),
+        content_type="application/octet-stream",
     )
 
     # Import GEDCOM into database
@@ -30,6 +33,7 @@ async def upload_file(file: UploadFile = File(...)):
         db.rollback()
         print(f"[ERROR] Failed to process GEDCOM file: {str(e)}")
         import traceback
+
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
     finally:

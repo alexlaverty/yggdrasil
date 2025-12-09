@@ -17,9 +17,13 @@ async def get_births(db: Session = Depends(get_db)):
     return [
         {
             "id": e.id,
-            "individual": e.individuals[0].first_name + " " + e.individuals[0].last_name if e.individuals else "",
+            "individual": (
+                e.individuals[0].first_name + " " + e.individuals[0].last_name
+                if e.individuals
+                else ""
+            ),
             "date": e.event_date,
-            "place": e.place
+            "place": e.place,
         }
         for e in events
     ]
@@ -32,9 +36,13 @@ async def get_deaths(db: Session = Depends(get_db)):
     return [
         {
             "id": e.id,
-            "individual": e.individuals[0].first_name + " " + e.individuals[0].last_name if e.individuals else "",
+            "individual": (
+                e.individuals[0].first_name + " " + e.individuals[0].last_name
+                if e.individuals
+                else ""
+            ),
             "date": e.event_date,
-            "place": e.place
+            "place": e.place,
         }
         for e in events
     ]
@@ -47,9 +55,13 @@ async def get_burials(db: Session = Depends(get_db)):
     return [
         {
             "id": e.id,
-            "individual": e.individuals[0].first_name + " " + e.individuals[0].last_name if e.individuals else "",
+            "individual": (
+                e.individuals[0].first_name + " " + e.individuals[0].last_name
+                if e.individuals
+                else ""
+            ),
             "date": e.event_date,
-            "place": e.place
+            "place": e.place,
         }
         for e in events
     ]
@@ -66,16 +78,27 @@ async def get_marriages(db: Session = Depends(get_db)):
         if e.families:
             male_birth_year = get_male_birth_year(e.families[0])
 
-        marriages_list.append({
-            "id": e.id,
-            "family": f"{e.families[0].spouse1.first_name} {e.families[0].spouse1.last_name} and {e.families[0].spouse2.first_name} {e.families[0].spouse2.last_name}" if e.families and e.families[0].spouse1 and e.families[0].spouse2 else "",
-            "date": e.event_date,
-            "place": e.place,
-            "male_birth_year": male_birth_year
-        })
+        marriages_list.append(
+            {
+                "id": e.id,
+                "family": (
+                    f"{e.families[0].spouse1.first_name} {e.families[0].spouse1.last_name} and {e.families[0].spouse2.first_name} {e.families[0].spouse2.last_name}"
+                    if e.families and e.families[0].spouse1 and e.families[0].spouse2
+                    else ""
+                ),
+                "date": e.event_date,
+                "place": e.place,
+                "male_birth_year": male_birth_year,
+            }
+        )
 
     # Sort by male birth year descending (newest first, None at end)
-    marriages_list.sort(key=lambda x: (x["male_birth_year"] is None, -x["male_birth_year"] if x["male_birth_year"] else 0))
+    marriages_list.sort(
+        key=lambda x: (
+            x["male_birth_year"] is None,
+            -x["male_birth_year"] if x["male_birth_year"] else 0,
+        )
+    )
     return marriages_list
 
 
@@ -89,12 +112,14 @@ async def get_event_details(event_id: int, db: Session = Depends(get_db)):
     # Get all individuals associated with this event
     individuals_data = []
     for individual in event.individuals:
-        individuals_data.append({
-            "id": individual.id,
-            "first_name": individual.first_name,
-            "last_name": individual.last_name,
-            "sex": individual.sex
-        })
+        individuals_data.append(
+            {
+                "id": individual.id,
+                "first_name": individual.first_name,
+                "last_name": individual.last_name,
+                "sex": individual.sex,
+            }
+        )
 
     # Get all families associated with this event (for marriages)
     families_data = []
@@ -105,35 +130,37 @@ async def get_event_details(event_id: int, db: Session = Depends(get_db)):
                 "id": family.spouse1.id,
                 "first_name": family.spouse1.first_name,
                 "last_name": family.spouse1.last_name,
-                "sex": family.spouse1.sex
+                "sex": family.spouse1.sex,
             }
         if family.spouse2:
             family_dict["spouse2"] = {
                 "id": family.spouse2.id,
                 "first_name": family.spouse2.first_name,
                 "last_name": family.spouse2.last_name,
-                "sex": family.spouse2.sex
+                "sex": family.spouse2.sex,
             }
         families_data.append(family_dict)
 
     # Get all media associated with this event
     media_data = []
     for media in event.media:
-        media_data.append({
-            "id": media.id,
-            "filename": media.filename,
-            "date": media.media_date,
-            "description": media.description
-        })
+        media_data.append(
+            {
+                "id": media.id,
+                "filename": media.filename,
+                "date": media.media_date,
+                "description": media.description,
+            }
+        )
 
     return {
         "event": {
             "id": event.id,
             "date": event.event_date,
             "place": event.place,
-            "description": event.description
+            "description": event.description,
         },
         "individuals": individuals_data,
         "families": families_data,
-        "media": media_data
+        "media": media_data,
     }

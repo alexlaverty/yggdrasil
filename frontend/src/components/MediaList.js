@@ -151,8 +151,10 @@ function MediaList() {
                 <div style={{ marginBottom: '10px', textAlign: 'center', backgroundColor: '#f9f9f9', borderRadius: '3px', overflow: 'hidden', height: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   {media.media_type === 'image' && (
                     <img
-                      src={`http://localhost:8001/api/media/${media.id}/file`}
+                      src={`http://localhost:8001/api/media/${media.id}/thumbnail`}
                       alt={media.filename}
+                      loading="lazy"
+                      decoding="async"
                       style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
                     />
                   )}

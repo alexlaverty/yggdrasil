@@ -4,11 +4,14 @@ import io
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
-from sqlalchemy import func
 
 from database import get_db
 from models import Individual, Family, Event, Media
-from schemas.people import CreatePersonRequest, UpdatePersonRequest, AddRelationshipRequest
+from schemas.people import (
+    CreatePersonRequest,
+    UpdatePersonRequest,
+    AddRelationshipRequest,
+)
 from services.storage import minio_client
 
 router = APIRouter(prefix="/people", tags=["people"])
@@ -27,17 +30,24 @@ async def get_people(db: Session = Depends(get_db)):
                 birth_year = event.event_date.year
                 break
 
-        people_list.append({
-            "id": i.id,
-            "first_name": i.first_name,
-            "last_name": i.last_name,
-            "sex": i.sex,
-            "birth_year": birth_year,
-            "profile_image_id": i.profile_image_id
-        })
+        people_list.append(
+            {
+                "id": i.id,
+                "first_name": i.first_name,
+                "last_name": i.last_name,
+                "sex": i.sex,
+                "birth_year": birth_year,
+                "profile_image_id": i.profile_image_id,
+            }
+        )
 
     # Sort by birth year descending (youngest first, None at end)
-    people_list.sort(key=lambda x: (x["birth_year"] is None, -x["birth_year"] if x["birth_year"] else 0))
+    people_list.sort(
+        key=lambda x: (
+            x["birth_year"] is None,
+            -x["birth_year"] if x["birth_year"] else 0,
+        )
+    )
     return people_list
 
 
@@ -52,19 +62,13 @@ async def get_person_details(person_id: int, db: Session = Depends(get_db)):
     births = []
     for event in person.events:
         if event.event_type == "BIRT":
-            births.append({
-                "date": event.event_date,
-                "place": event.place
-            })
+            births.append({"date": event.event_date, "place": event.place})
 
     # Get death events
     deaths = []
     for event in person.events:
         if event.event_type == "DEAT":
-            deaths.append({
-                "date": event.event_date,
-                "place": event.place
-            })
+            deaths.append({"date": event.event_date, "place": event.place})
 
     # Get family relationships (as spouse)
     families_as_spouse = person.families_as_spouse + person.families_as_spouse2
@@ -80,20 +84,28 @@ async def get_person_details(person_id: int, db: Session = Depends(get_db)):
 
         if spouse and spouse.id not in seen_spouse_ids:
             seen_spouse_ids.add(spouse.id)
-            spouses.append({
-                "id": spouse.id,
-                "name": f"{spouse.first_name} {spouse.last_name}",
-                "sex": spouse.sex
-            })
+            spouses.append(
+                {
+                    "id": spouse.id,
+                    "name": f"{spouse.first_name} {spouse.last_name}",
+                    "sex": spouse.sex,
+                }
+            )
 
         # Get marriage events for this family
         for event in family.events:
             if event.event_type == "MARR":
-                marriages.append({
-                    "date": event.event_date,
-                    "place": event.place,
-                    "spouse": f"{spouse.first_name} {spouse.last_name}" if spouse else "Unknown"
-                })
+                marriages.append(
+                    {
+                        "date": event.event_date,
+                        "place": event.place,
+                        "spouse": (
+                            f"{spouse.first_name} {spouse.last_name}"
+                            if spouse
+                            else "Unknown"
+                        ),
+                    }
+                )
 
     # Get children (deduplicated)
     children = []
@@ -102,11 +114,13 @@ async def get_person_details(person_id: int, db: Session = Depends(get_db)):
         for child in family.children:
             if child.id not in seen_children_ids:
                 seen_children_ids.add(child.id)
-                children.append({
-                    "id": child.id,
-                    "name": f"{child.first_name} {child.last_name}",
-                    "sex": child.sex
-                })
+                children.append(
+                    {
+                        "id": child.id,
+                        "name": f"{child.first_name} {child.last_name}",
+                        "sex": child.sex,
+                    }
+                )
 
     # Get parents (from family as child) - deduplicated
     parents = []
@@ -115,31 +129,39 @@ async def get_person_details(person_id: int, db: Session = Depends(get_db)):
         if family.spouse1:
             if family.spouse1.id not in seen_parent_ids:
                 seen_parent_ids.add(family.spouse1.id)
-                parents.append({
-                    "id": family.spouse1.id,
-                    "name": f"{family.spouse1.first_name} {family.spouse1.last_name}",
-                    "sex": family.spouse1.sex
-                })
+                parents.append(
+                    {
+                        "id": family.spouse1.id,
+                        "name": f"{family.spouse1.first_name} {family.spouse1.last_name}",
+                        "sex": family.spouse1.sex,
+                    }
+                )
         if family.spouse2:
             if family.spouse2.id not in seen_parent_ids:
                 seen_parent_ids.add(family.spouse2.id)
-                parents.append({
-                    "id": family.spouse2.id,
-                    "name": f"{family.spouse2.first_name} {family.spouse2.last_name}",
-                    "sex": family.spouse2.sex
-                })
+                parents.append(
+                    {
+                        "id": family.spouse2.id,
+                        "name": f"{family.spouse2.first_name} {family.spouse2.last_name}",
+                        "sex": family.spouse2.sex,
+                    }
+                )
 
     # Get media tagged to this person
     media_files = []
     for media in person.media:
-        media_files.append({
-            "id": media.id,
-            "filename": media.filename,
-            "media_type": media.media_type,
-            "file_size": media.file_size,
-            "media_date": media.media_date.isoformat() if media.media_date else None,
-            "description": media.description
-        })
+        media_files.append(
+            {
+                "id": media.id,
+                "filename": media.filename,
+                "media_type": media.media_type,
+                "file_size": media.file_size,
+                "media_date": (
+                    media.media_date.isoformat() if media.media_date else None
+                ),
+                "description": media.description,
+            }
+        )
 
     return {
         "id": person.id,
@@ -154,18 +176,20 @@ async def get_person_details(person_id: int, db: Session = Depends(get_db)):
         "spouses": spouses,
         "children": children,
         "parents": parents,
-        "media": media_files
+        "media": media_files,
     }
 
 
 @router.post("")
-async def create_person(person_data: CreatePersonRequest, db: Session = Depends(get_db)):
+async def create_person(
+    person_data: CreatePersonRequest, db: Session = Depends(get_db)
+):
     """Create a new person."""
     try:
         new_person = Individual(
             first_name=person_data.first_name,
             last_name=person_data.last_name,
-            sex=person_data.sex if person_data.sex in ['M', 'F'] else None
+            sex=person_data.sex if person_data.sex in ["M", "F"] else None,
         )
         db.add(new_person)
         db.flush()
@@ -175,7 +199,9 @@ async def create_person(person_data: CreatePersonRequest, db: Session = Depends(
             birth_event = Event(event_type="BIRT")
             if person_data.birth_date:
                 try:
-                    birth_event.event_date = datetime.strptime(person_data.birth_date, "%Y-%m-%d").date()
+                    birth_event.event_date = datetime.strptime(
+                        person_data.birth_date, "%Y-%m-%d"
+                    ).date()
                 except ValueError:
                     pass
             if person_data.birth_place:
@@ -189,7 +215,9 @@ async def create_person(person_data: CreatePersonRequest, db: Session = Depends(
             death_event = Event(event_type="DEAT")
             if person_data.death_date:
                 try:
-                    death_event.event_date = datetime.strptime(person_data.death_date, "%Y-%m-%d").date()
+                    death_event.event_date = datetime.strptime(
+                        person_data.death_date, "%Y-%m-%d"
+                    ).date()
                 except ValueError:
                     pass
             if person_data.death_place:
@@ -206,7 +234,7 @@ async def create_person(person_data: CreatePersonRequest, db: Session = Depends(
             "first_name": new_person.first_name,
             "last_name": new_person.last_name,
             "sex": new_person.sex,
-            "message": "Person created successfully"
+            "message": "Person created successfully",
         }
     except Exception as e:
         db.rollback()
@@ -214,7 +242,9 @@ async def create_person(person_data: CreatePersonRequest, db: Session = Depends(
 
 
 @router.put("/{person_id}")
-async def update_person(person_id: int, person_data: UpdatePersonRequest, db: Session = Depends(get_db)):
+async def update_person(
+    person_id: int, person_data: UpdatePersonRequest, db: Session = Depends(get_db)
+):
     """Update an existing person."""
     person = db.query(Individual).filter(Individual.id == person_id).first()
     if not person:
@@ -225,11 +255,15 @@ async def update_person(person_id: int, person_data: UpdatePersonRequest, db: Se
             person.first_name = person_data.first_name
         if person_data.last_name is not None:
             person.last_name = person_data.last_name
-        if person_data.sex is not None and person_data.sex in ['M', 'F', '']:
+        if person_data.sex is not None and person_data.sex in ["M", "F", ""]:
             person.sex = person_data.sex if person_data.sex else None
         if person_data.profile_image_id is not None:
             if person_data.profile_image_id > 0:
-                media = db.query(Media).filter(Media.id == person_data.profile_image_id).first()
+                media = (
+                    db.query(Media)
+                    .filter(Media.id == person_data.profile_image_id)
+                    .first()
+                )
                 if media:
                     person.profile_image_id = person_data.profile_image_id
             else:
@@ -244,7 +278,7 @@ async def update_person(person_id: int, person_data: UpdatePersonRequest, db: Se
             "last_name": person.last_name,
             "sex": person.sex,
             "profile_image_id": person.profile_image_id,
-            "message": "Person updated successfully"
+            "message": "Person updated successfully",
         }
     except Exception as e:
         db.rollback()
@@ -253,9 +287,7 @@ async def update_person(person_id: int, person_data: UpdatePersonRequest, db: Se
 
 @router.post("/{person_id}/profile-image")
 async def upload_profile_image(
-    person_id: int,
-    file: UploadFile = File(...),
-    db: Session = Depends(get_db)
+    person_id: int, file: UploadFile = File(...), db: Session = Depends(get_db)
 ):
     """Upload a profile image for a person."""
     person = db.query(Individual).filter(Individual.id == person_id).first()
@@ -274,14 +306,14 @@ async def upload_profile_image(
             filename,
             io.BytesIO(file_content),
             file_size,
-            content_type=file.content_type
+            content_type=file.content_type,
         )
 
         new_media = Media(
             filename=file.filename,
             file_path=filename,
             media_type="image",
-            file_size=file_size
+            file_size=file_size,
         )
         db.add(new_media)
         db.flush()
@@ -294,7 +326,7 @@ async def upload_profile_image(
         return {
             "id": new_media.id,
             "filename": new_media.filename,
-            "message": "Profile image uploaded successfully"
+            "message": "Profile image uploaded successfully",
         }
     except Exception as e:
         db.rollback()
@@ -303,10 +335,14 @@ async def upload_profile_image(
 
 
 @router.post("/{person_id}/add-parent")
-async def add_parent(person_id: int, data: AddRelationshipRequest, db: Session = Depends(get_db)):
+async def add_parent(
+    person_id: int, data: AddRelationshipRequest, db: Session = Depends(get_db)
+):
     """Add a parent to a person by creating or updating a Family relationship."""
     child = db.query(Individual).filter(Individual.id == person_id).first()
-    parent = db.query(Individual).filter(Individual.id == data.related_person_id).first()
+    parent = (
+        db.query(Individual).filter(Individual.id == data.related_person_id).first()
+    )
 
     if not child:
         raise HTTPException(status_code=404, detail="Child not found")
@@ -314,7 +350,9 @@ async def add_parent(person_id: int, data: AddRelationshipRequest, db: Session =
         raise HTTPException(status_code=404, detail="Parent not found")
 
     try:
-        existing_family = child.families_as_child[0] if child.families_as_child else None
+        existing_family = (
+            child.families_as_child[0] if child.families_as_child else None
+        )
 
         if existing_family:
             if not existing_family.spouse1:
@@ -322,7 +360,9 @@ async def add_parent(person_id: int, data: AddRelationshipRequest, db: Session =
             elif not existing_family.spouse2:
                 existing_family.spouse2 = parent
             else:
-                raise HTTPException(status_code=400, detail="Child already has two parents")
+                raise HTTPException(
+                    status_code=400, detail="Child already has two parents"
+                )
         else:
             new_family = Family()
             new_family.spouse1 = parent
@@ -343,7 +383,9 @@ async def add_parent(person_id: int, data: AddRelationshipRequest, db: Session =
 
 
 @router.post("/{person_id}/add-child")
-async def add_child(person_id: int, data: AddRelationshipRequest, db: Session = Depends(get_db)):
+async def add_child(
+    person_id: int, data: AddRelationshipRequest, db: Session = Depends(get_db)
+):
     """Add a child to a person by creating or updating a Family relationship."""
     parent = db.query(Individual).filter(Individual.id == person_id).first()
     child = db.query(Individual).filter(Individual.id == data.related_person_id).first()

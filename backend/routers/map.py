@@ -9,7 +9,7 @@ from models import Event, Place
 from services.geocoding import (
     geocode_all_places,
     sync_places_from_events,
-    get_geocoding_stats
+    get_geocoding_stats,
 )
 
 router = APIRouter(prefix="/map", tags=["map"])
@@ -22,11 +22,13 @@ async def get_map_events(db: Session = Depends(get_db)):
     Only returns events that have geocoded coordinates in the Place table.
     """
     # Get all geocoded places
-    places = db.query(Place).filter(
-        Place.geocoded == 1,
-        Place.latitude.isnot(None),
-        Place.longitude.isnot(None)
-    ).all()
+    places = (
+        db.query(Place)
+        .filter(
+            Place.geocoded == 1, Place.latitude.isnot(None), Place.longitude.isnot(None)
+        )
+        .all()
+    )
 
     place_coords = {p.name: {"lat": p.latitude, "lng": p.longitude} for p in places}
 
@@ -63,18 +65,20 @@ async def get_map_events(db: Session = Depends(get_db)):
                     name = f"{family.spouse2.first_name} {family.spouse2.last_name}"
                 family_id = family.id
 
-        events_list.append({
-            "id": event.id,
-            "event_type": event.event_type,
-            "date": event.event_date.isoformat() if event.event_date else None,
-            "year": event.event_date.year if event.event_date else None,
-            "place": event.place,
-            "name": name,
-            "person_id": person_id,
-            "family_id": family_id,
-            "lat": coords["lat"],
-            "lng": coords["lng"]
-        })
+        events_list.append(
+            {
+                "id": event.id,
+                "event_type": event.event_type,
+                "date": event.event_date.isoformat() if event.event_date else None,
+                "year": event.event_date.year if event.event_date else None,
+                "place": event.place,
+                "name": name,
+                "person_id": person_id,
+                "family_id": family_id,
+                "lat": coords["lat"],
+                "lng": coords["lng"],
+            }
+        )
 
     # Sort by year for timeline feature
     events_list.sort(key=lambda x: (x["year"] is None, x["year"] if x["year"] else 0))
@@ -89,10 +93,11 @@ async def get_event_years(db: Session = Depends(get_db)):
     places = db.query(Place).filter(Place.geocoded == 1).all()
     place_names = {p.name for p in places}
 
-    events = db.query(Event).filter(
-        Event.place.isnot(None),
-        Event.event_date.isnot(None)
-    ).all()
+    events = (
+        db.query(Event)
+        .filter(Event.place.isnot(None), Event.event_date.isnot(None))
+        .all()
+    )
 
     years = [
         e.event_date.year
@@ -103,11 +108,7 @@ async def get_event_years(db: Session = Depends(get_db)):
     if not years:
         return {"min_year": None, "max_year": None, "years": []}
 
-    return {
-        "min_year": min(years),
-        "max_year": max(years),
-        "years": sorted(set(years))
-    }
+    return {"min_year": min(years), "max_year": max(years), "years": sorted(set(years))}
 
 
 @router.get("/places/stats")
@@ -124,7 +125,7 @@ async def sync_places(db: Session = Depends(get_db)):
     return {
         "message": f"Synced {new_count} new places",
         "new_places": new_count,
-        "stats": stats
+        "stats": stats,
     }
 
 
@@ -133,16 +134,15 @@ class GeocodeRequest(BaseModel):
 
 
 # Track geocoding status
-geocoding_status = {
-    "running": False,
-    "progress": 0,
-    "total": 0,
-    "results": None
-}
+geocoding_status = {"running": False, "progress": 0, "total": 0, "results": None}
 
 
 @router.post("/places/geocode")
-async def start_geocoding(request: GeocodeRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+async def start_geocoding(
+    request: GeocodeRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
     """Start geocoding all places.
 
     This runs synchronously since we need to respect rate limits.
@@ -167,7 +167,7 @@ async def start_geocoding(request: GeocodeRequest, background_tasks: BackgroundT
         return {
             "message": "Geocoding complete",
             "results": results,
-            "stats": get_geocoding_stats(db)
+            "stats": get_geocoding_stats(db),
         }
     finally:
         geocoding_status["running"] = False
@@ -190,7 +190,7 @@ async def get_all_places(db: Session = Depends(get_db)):
             "name": p.name,
             "latitude": p.latitude,
             "longitude": p.longitude,
-            "geocoded": p.geocoded
+            "geocoded": p.geocoded,
         }
         for p in places
     ]

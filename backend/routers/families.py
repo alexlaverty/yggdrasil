@@ -26,19 +26,26 @@ async def get_families(db: Session = Depends(get_db)):
 
         male_birth_year = get_male_birth_year(family)
 
-        families_list.append({
-            "id": family.id,
-            "gedcom_id": family.gedcom_id,
-            "spouse1_name": spouse1_name,
-            "spouse2_name": spouse2_name,
-            "spouse1_id": family.spouse1_id,
-            "spouse2_id": family.spouse2_id,
-            "children_count": len(family.children) if family.children else 0,
-            "male_birth_year": male_birth_year
-        })
+        families_list.append(
+            {
+                "id": family.id,
+                "gedcom_id": family.gedcom_id,
+                "spouse1_name": spouse1_name,
+                "spouse2_name": spouse2_name,
+                "spouse1_id": family.spouse1_id,
+                "spouse2_id": family.spouse2_id,
+                "children_count": len(family.children) if family.children else 0,
+                "male_birth_year": male_birth_year,
+            }
+        )
 
     # Sort by male birth year descending (newest first, None at end)
-    families_list.sort(key=lambda x: (x["male_birth_year"] is None, -x["male_birth_year"] if x["male_birth_year"] else 0))
+    families_list.sort(
+        key=lambda x: (
+            x["male_birth_year"] is None,
+            -x["male_birth_year"] if x["male_birth_year"] else 0,
+        )
+    )
     return families_list
 
 
@@ -58,7 +65,7 @@ async def get_family_details(family_id: int, db: Session = Depends(get_db)):
             "id": family.spouse1.id,
             "first_name": family.spouse1.first_name,
             "last_name": family.spouse1.last_name,
-            "sex": family.spouse1.sex
+            "sex": family.spouse1.sex,
         }
 
     if family.spouse2:
@@ -66,7 +73,7 @@ async def get_family_details(family_id: int, db: Session = Depends(get_db)):
             "id": family.spouse2.id,
             "first_name": family.spouse2.first_name,
             "last_name": family.spouse2.last_name,
-            "sex": family.spouse2.sex
+            "sex": family.spouse2.sex,
         }
 
     # Get children information
@@ -78,25 +85,30 @@ async def get_family_details(family_id: int, db: Session = Depends(get_db)):
                 birth_year = event.event_date.year
                 break
 
-        children_data.append({
-            "id": child.id,
-            "first_name": child.first_name,
-            "last_name": child.last_name,
-            "sex": child.sex,
-            "birth_year": birth_year
-        })
+        children_data.append(
+            {
+                "id": child.id,
+                "first_name": child.first_name,
+                "last_name": child.last_name,
+                "sex": child.sex,
+                "birth_year": birth_year,
+            }
+        )
 
-    children_data.sort(key=lambda x: (x["birth_year"] is None, x["birth_year"] if x["birth_year"] else 0))
+    children_data.sort(
+        key=lambda x: (
+            x["birth_year"] is None,
+            x["birth_year"] if x["birth_year"] else 0,
+        )
+    )
 
     # Get marriage events
     marriages = []
     for event in family.events:
         if event.event_type == "MARR":
-            marriages.append({
-                "id": event.id,
-                "date": event.event_date,
-                "place": event.place
-            })
+            marriages.append(
+                {"id": event.id, "date": event.event_date, "place": event.place}
+            )
 
     # Get all family member IDs for media lookup
     member_ids = []
@@ -118,21 +130,24 @@ async def get_family_details(family_id: int, db: Session = Depends(get_db)):
                 if media.id not in seen_media_ids:
                     seen_media_ids.add(media.id)
                     tagged_individuals = [
-                        {
-                            "id": ind.id,
-                            "name": f"{ind.first_name} {ind.last_name}"
-                        }
+                        {"id": ind.id, "name": f"{ind.first_name} {ind.last_name}"}
                         for ind in media.individuals
                     ]
-                    media_list.append({
-                        "id": media.id,
-                        "filename": media.filename,
-                        "media_type": media.media_type,
-                        "file_size": media.file_size,
-                        "media_date": media.media_date.isoformat() if media.media_date else None,
-                        "description": media.description,
-                        "tagged_individuals": tagged_individuals
-                    })
+                    media_list.append(
+                        {
+                            "id": media.id,
+                            "filename": media.filename,
+                            "media_type": media.media_type,
+                            "file_size": media.file_size,
+                            "media_date": (
+                                media.media_date.isoformat()
+                                if media.media_date
+                                else None
+                            ),
+                            "description": media.description,
+                            "tagged_individuals": tagged_individuals,
+                        }
+                    )
 
     return {
         "id": family.id,
@@ -141,5 +156,5 @@ async def get_family_details(family_id: int, db: Session = Depends(get_db)):
         "spouse2": spouse2_data,
         "children": children_data,
         "marriages": marriages,
-        "media": media_list
+        "media": media_list,
     }

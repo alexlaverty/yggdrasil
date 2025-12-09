@@ -111,6 +111,8 @@ function People() {
                     <img
                       src={`http://localhost:8001/api/media/${p.profile_image_id}/file`}
                       alt={`${p.first_name} ${p.last_name}`}
+                      loading="lazy"
+                      decoding="async"
                       style={{
                         width: '40px',
                         height: '40px',

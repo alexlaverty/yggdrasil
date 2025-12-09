@@ -161,8 +161,10 @@ function FamilyDetail() {
                   <div style={{ cursor: 'pointer' }}>
                     {media.media_type === 'image' && (
                       <img
-                        src={`http://localhost:8001/api/media/${media.id}/file`}
+                        src={`http://localhost:8001/api/media/${media.id}/thumbnail`}
                         alt={media.filename}
+                        loading="lazy"
+                        decoding="async"
                         style={{ maxWidth: '100%', maxHeight: '200px', objectFit: 'cover', borderRadius: '3px' }}
                       />
                     )}
