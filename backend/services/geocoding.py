@@ -15,22 +15,15 @@ def geocode_place_nominatim(place_name: str) -> dict:
     try:
         response = httpx.get(
             "https://nominatim.openstreetmap.org/search",
-            params={
-                "format": "json",
-                "q": place_name,
-                "limit": 1
-            },
+            params={"format": "json", "q": place_name, "limit": 1},
             headers={"User-Agent": "YggdrasilGenealogy/1.0"},
-            timeout=10.0
+            timeout=10.0,
         )
         response.raise_for_status()
         data = response.json()
 
         if data and len(data) > 0:
-            return {
-                "lat": float(data[0]["lat"]),
-                "lng": float(data[0]["lon"])
-            }
+            return {"lat": float(data[0]["lat"]), "lng": float(data[0]["lon"])}
     except Exception as e:
         print(f"Geocoding error for '{place_name}': {e}")
 
@@ -43,7 +36,9 @@ def sync_places_from_events(db: Session) -> int:
     Returns number of new places added.
     """
     # Get all unique place names from events
-    events_with_places = db.query(Event.place).filter(Event.place.isnot(None)).distinct().all()
+    events_with_places = (
+        db.query(Event.place).filter(Event.place.isnot(None)).distinct().all()
+    )
     place_names = {e[0].strip() for e in events_with_places if e[0] and e[0].strip()}
 
     # Get existing places
@@ -81,7 +76,13 @@ def geocode_all_places(db: Session, force: bool = False) -> dict:
         # Only geocode places that haven't been attempted
         places = db.query(Place).filter(Place.geocoded == 0).all()
 
-    results = {"total": len(places), "success": 0, "failed": 0, "skipped": 0, "new_places": new_places}
+    results = {
+        "total": len(places),
+        "success": 0,
+        "failed": 0,
+        "skipped": 0,
+        "new_places": new_places,
+    }
 
     for place in places:
         # Skip if already geocoded successfully and not forcing
@@ -129,7 +130,9 @@ def get_geocoding_stats(db: Session) -> dict:
     pending = db.query(Place).filter(Place.geocoded == 0).count()
 
     # Count unique places in events that aren't in Place table yet
-    events_with_places = db.query(Event.place).filter(Event.place.isnot(None)).distinct().all()
+    events_with_places = (
+        db.query(Event.place).filter(Event.place.isnot(None)).distinct().all()
+    )
     event_places = {e[0].strip() for e in events_with_places if e[0] and e[0].strip()}
     existing_places = {p[0] for p in db.query(Place.name).all()}
     unsynced = len(event_places - existing_places)
@@ -139,5 +142,5 @@ def get_geocoding_stats(db: Session) -> dict:
         "success": success,
         "failed": failed,
         "pending": pending,
-        "unsynced": unsynced
+        "unsynced": unsynced,
     }

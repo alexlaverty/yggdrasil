@@ -7,9 +7,9 @@ def get_male_birth_year(family):
     Used for sorting families and marriages by the husband's birth year.
     """
     male = None
-    if family.spouse1 and family.spouse1.sex == 'M':
+    if family.spouse1 and family.spouse1.sex == "M":
         male = family.spouse1
-    elif family.spouse2 and family.spouse2.sex == 'M':
+    elif family.spouse2 and family.spouse2.sex == "M":
         male = family.spouse2
 
     if male:

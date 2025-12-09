@@ -14,7 +14,7 @@ def get_minio_client() -> Minio:
         os.getenv("MINIO_ENDPOINT", "minio:9000"),
         access_key=os.getenv("MINIO_ACCESS_KEY", "minioadmin"),
         secret_key=os.getenv("MINIO_SECRET_KEY", "minioadmin123"),
-        secure=False
+        secure=False,
     )
 
 
@@ -29,14 +29,16 @@ def ensure_buckets(client: Minio) -> None:
         print(f"MinIO bucket creation failed: {e}")
 
 
-def upload_file(client: Minio, bucket: str, filename: str, data: bytes, content_type: str = "application/octet-stream") -> None:
+def upload_file(
+    client: Minio,
+    bucket: str,
+    filename: str,
+    data: bytes,
+    content_type: str = "application/octet-stream",
+) -> None:
     """Upload a file to MinIO."""
     client.put_object(
-        bucket,
-        filename,
-        io.BytesIO(data),
-        len(data),
-        content_type=content_type
+        bucket, filename, io.BytesIO(data), len(data), content_type=content_type
     )
 
 
@@ -51,10 +53,15 @@ def get_file_stream(client: Minio, bucket: str, filename: str):
     return client.get_object(bucket, filename)
 
 
-def get_presigned_url(client: Minio, bucket: str, filename: str, expires_hours: int = 1) -> str:
+def get_presigned_url(
+    client: Minio, bucket: str, filename: str, expires_hours: int = 1
+) -> str:
     """Generate a presigned URL for direct access to a file in MinIO."""
     from datetime import timedelta
-    return client.presigned_get_object(bucket, filename, expires=timedelta(hours=expires_hours))
+
+    return client.presigned_get_object(
+        bucket, filename, expires=timedelta(hours=expires_hours)
+    )
 
 
 def generate_thumbnail(image_data: bytes, filename: str) -> tuple[bytes, str] | None:
@@ -63,25 +70,25 @@ def generate_thumbnail(image_data: bytes, filename: str) -> tuple[bytes, str] | 
         img = Image.open(io.BytesIO(image_data))
 
         # Convert RGBA to RGB for JPEG
-        if img.mode in ('RGBA', 'LA', 'P'):
-            background = Image.new('RGB', img.size, (255, 255, 255))
-            if img.mode == 'P':
-                img = img.convert('RGBA')
-            background.paste(img, mask=img.split()[-1] if img.mode == 'RGBA' else None)
+        if img.mode in ("RGBA", "LA", "P"):
+            background = Image.new("RGB", img.size, (255, 255, 255))
+            if img.mode == "P":
+                img = img.convert("RGBA")
+            background.paste(img, mask=img.split()[-1] if img.mode == "RGBA" else None)
             img = background
-        elif img.mode != 'RGB':
-            img = img.convert('RGB')
+        elif img.mode != "RGB":
+            img = img.convert("RGB")
 
         # Create thumbnail maintaining aspect ratio
         img.thumbnail(THUMBNAIL_SIZE, Image.Resampling.LANCZOS)
 
         # Save to bytes
         thumb_buffer = io.BytesIO()
-        img.save(thumb_buffer, format='JPEG', quality=85, optimize=True)
+        img.save(thumb_buffer, format="JPEG", quality=85, optimize=True)
         thumb_buffer.seek(0)
 
         # Generate thumbnail filename
-        base_name = filename.rsplit('.', 1)[0] if '.' in filename else filename
+        base_name = filename.rsplit(".", 1)[0] if "." in filename else filename
         thumb_filename = f"thumb_{base_name}.jpg"
 
         return thumb_buffer.getvalue(), thumb_filename
@@ -90,14 +97,16 @@ def generate_thumbnail(image_data: bytes, filename: str) -> tuple[bytes, str] | 
         return None
 
 
-def upload_thumbnail(client: Minio, bucket: str, thumb_data: bytes, thumb_filename: str) -> str:
+def upload_thumbnail(
+    client: Minio, bucket: str, thumb_data: bytes, thumb_filename: str
+) -> str:
     """Upload a thumbnail to MinIO and return the path."""
     client.put_object(
         bucket,
         thumb_filename,
         io.BytesIO(thumb_data),
         len(thumb_data),
-        content_type="image/jpeg"
+        content_type="image/jpeg",
     )
     return thumb_filename
 
