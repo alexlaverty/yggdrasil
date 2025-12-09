@@ -133,6 +133,7 @@ class Media(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     filename = Column(String(255), nullable=False)
     file_path = Column(String(512), nullable=False)  # Path in MinIO
+    thumbnail_path = Column(String(512), nullable=True)  # Thumbnail path in MinIO
     media_type = Column(String(50))  # 'image', 'video', 'document', etc.
     file_size = Column(Integer)  # Size in bytes
     media_date = Column(Date)  # When the media was taken/created

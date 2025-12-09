@@ -350,17 +350,19 @@ function MediaDetail() {
         <div style={{ textAlign: 'center', backgroundColor: 'white', padding: '20px', borderRadius: '5px' }}>
           {media.media_type === 'image' && (
             <img
-              src={`http://localhost:8001/api/media/${media.id}/file`}
+              key={mediaId}
+              src={`http://localhost:8001/api/media/${mediaId}/file`}
               alt={media.filename}
               style={{ maxWidth: '100%', maxHeight: '600px', objectFit: 'contain' }}
             />
           )}
           {media.media_type === 'video' && (
             <video
+              key={mediaId}
               controls
               style={{ maxWidth: '100%', maxHeight: '600px' }}
             >
-              <source src={`http://localhost:8001/api/media/${media.id}/file`} type="video/mp4" />
+              <source src={`http://localhost:8001/api/media/${mediaId}/file`} type="video/mp4" />
               Your browser does not support the video tag.
             </video>
           )}

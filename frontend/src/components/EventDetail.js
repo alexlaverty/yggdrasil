@@ -290,8 +290,10 @@ function EventDetail({ eventType }) {
                 }}>
                   {item.filename.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
                     <img
-                      src={`http://localhost:8001/api/media/${item.id}/file`}
+                      src={`http://localhost:8001/api/media/${item.id}/thumbnail`}
                       alt={item.description || 'Media'}
+                      loading="lazy"
+                      decoding="async"
                       style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                     />
                   ) : (

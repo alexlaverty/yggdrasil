@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models import Individual, Event, Media
 from schemas.media import MediaUpdateRequest
-from services.storage import minio_client
+from services.storage import minio_client, get_presigned_url, generate_thumbnail, upload_thumbnail
 from services.text_extraction import extract_text
 
 router = APIRouter(prefix="/media", tags=["media"])
@@ -55,9 +55,18 @@ async def upload_media(
             content_type=mime_type
         )
 
+        # Generate thumbnail for images
+        thumbnail_path = None
+        if media_type == "image":
+            thumb_result = generate_thumbnail(contents, file_path)
+            if thumb_result:
+                thumb_data, thumb_filename = thumb_result
+                thumbnail_path = upload_thumbnail(minio_client, "media", thumb_data, thumb_filename)
+
         media = Media(
             filename=filename,
             file_path=file_path,
+            thumbnail_path=thumbnail_path,
             media_type=media_type,
             file_size=file_size,
             media_date=datetime.strptime(media_date, "%Y-%m-%d").date() if media_date else None,
@@ -154,16 +163,66 @@ async def get_media_file(media_id: int, db: Session = Depends(get_db)):
         response = minio_client.get_object("media", media.file_path)
         content_type = mimetypes.guess_type(media.filename)[0] or "application/octet-stream"
 
+        # Generate ETag from media id and updated_at timestamp
+        etag = f'"{media.id}-{int(media.updated_at.timestamp()) if media.updated_at else 0}"'
+
         return StreamingResponse(
             response,
             media_type=content_type,
             headers={
-                "Content-Disposition": f'inline; filename="{media.filename}"'
+                "Content-Disposition": f'inline; filename="{media.filename}"',
+                "Cache-Control": "public, max-age=31536000, immutable",
+                "ETag": etag,
+                "Content-Length": str(media.file_size) if media.file_size else None,
             }
         )
     except Exception as e:
         print(f"Error retrieving media file: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error retrieving file: {str(e)}")
+
+
+@router.get("/{media_id}/thumbnail")
+async def get_media_thumbnail(media_id: int, db: Session = Depends(get_db)):
+    """Retrieve thumbnail for media file (smaller, faster loading)."""
+    media = db.query(Media).filter(Media.id == media_id).first()
+    if not media:
+        raise HTTPException(status_code=404, detail="Media not found")
+
+    # If no thumbnail exists, fall back to original file
+    file_to_serve = media.thumbnail_path or media.file_path
+    content_type = "image/jpeg" if media.thumbnail_path else (mimetypes.guess_type(media.filename)[0] or "application/octet-stream")
+
+    try:
+        response = minio_client.get_object("media", file_to_serve)
+        etag = f'"{media.id}-thumb-{int(media.updated_at.timestamp()) if media.updated_at else 0}"'
+
+        return StreamingResponse(
+            response,
+            media_type=content_type,
+            headers={
+                "Content-Disposition": f'inline; filename="thumb_{media.filename}"',
+                "Cache-Control": "public, max-age=31536000, immutable",
+                "ETag": etag,
+            }
+        )
+    except Exception as e:
+        print(f"Error retrieving thumbnail: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error retrieving thumbnail: {str(e)}")
+
+
+@router.get("/{media_id}/url")
+async def get_media_url(media_id: int, db: Session = Depends(get_db)):
+    """Get a presigned URL for direct MinIO access (faster, bypasses API)."""
+    media = db.query(Media).filter(Media.id == media_id).first()
+    if not media:
+        raise HTTPException(status_code=404, detail="Media not found")
+
+    try:
+        url = get_presigned_url(minio_client, "media", media.file_path, expires_hours=24)
+        return {"url": url, "expires_in": "24 hours"}
+    except Exception as e:
+        print(f"Error generating presigned URL: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error generating URL: {str(e)}")
 
 
 @router.put("/{media_id}")
