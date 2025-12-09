@@ -4,7 +4,6 @@ import io
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
-from sqlalchemy import func
 
 from database import get_db
 from models import Individual, Family, Event, Media

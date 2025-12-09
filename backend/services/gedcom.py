@@ -280,12 +280,12 @@ def import_gedcom(db: Session, contents: bytes) -> dict:
     burials_count = db.query(Event).filter(Event.event_type == "BURI").count()
     marriages_count = db.query(Event).filter(Event.event_type == "MARR").count()
 
-    print(f"[DEBUG] Event Summary:")
+    print("[DEBUG] Event Summary:")
     print(f"[DEBUG]   - Births: {births_count}")
     print(f"[DEBUG]   - Deaths: {deaths_count}")
     print(f"[DEBUG]   - Burials: {burials_count}")
     print(f"[DEBUG]   - Marriages: {marriages_count}")
-    print(f"[DEBUG] GEDCOM file processed successfully!")
+    print("[DEBUG] GEDCOM file processed successfully!")
 
     return {
         "individuals": len(individual_map),
