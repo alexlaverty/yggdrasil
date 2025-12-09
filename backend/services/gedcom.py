@@ -1,4 +1,4 @@
-"""GEDCOM parsing and import service."""
+"""GEDCOM parsing and import/export service."""
 
 import os
 import tempfile
@@ -9,6 +9,25 @@ from gedcom.element.family import FamilyElement
 from sqlalchemy.orm import Session
 
 from models import Individual, Family, Event
+
+
+# GEDCOM month abbreviations
+MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
+
+
+def format_gedcom_date(date_obj) -> str:
+    """Format a date object to GEDCOM format (DD MON YYYY)."""
+    if not date_obj:
+        return ""
+    return f"{date_obj.day} {MONTHS[date_obj.month - 1]} {date_obj.year}"
+
+
+def escape_gedcom_value(value: str) -> str:
+    """Escape special characters in GEDCOM values."""
+    if not value:
+        return ""
+    # GEDCOM doesn't allow @ characters in values unless escaped
+    return value.replace("@", "@@")
 
 
 def clean_name(name_str: str) -> str:
@@ -295,3 +314,117 @@ def import_gedcom(db: Session, contents: bytes) -> dict:
         "burials": burials_count,
         "marriages": marriages_count,
     }
+
+
+def export_gedcom(db: Session) -> str:
+    """Export database data to a valid GEDCOM file format.
+
+    Returns the GEDCOM file content as a string.
+    """
+    lines = []
+
+    # GEDCOM header
+    lines.append("0 HEAD")
+    lines.append("1 SOUR Yggdrasil")
+    lines.append("2 VERS 1.0")
+    lines.append("2 NAME Yggdrasil Family History")
+    lines.append("1 GEDC")
+    lines.append("2 VERS 5.5.1")
+    lines.append("2 FORM LINEAGE-LINKED")
+    lines.append("1 CHAR UTF-8")
+    lines.append(f"1 DATE {format_gedcom_date(datetime.now().date())}")
+
+    # Query all individuals and families
+    individuals = db.query(Individual).all()
+    families = db.query(Family).all()
+
+    # Create ID mappings for GEDCOM IDs
+    # Use existing gedcom_id if available, otherwise generate one
+    ind_id_map = {}
+    for ind in individuals:
+        if ind.gedcom_id:
+            ind_id_map[ind.id] = ind.gedcom_id
+        else:
+            ind_id_map[ind.id] = f"@I{ind.id}@"
+
+    fam_id_map = {}
+    for fam in families:
+        if fam.gedcom_id:
+            fam_id_map[fam.id] = fam.gedcom_id
+        else:
+            fam_id_map[fam.id] = f"@F{fam.id}@"
+
+    # Export individuals
+    for ind in individuals:
+        gedcom_id = ind_id_map[ind.id]
+        lines.append(f"0 {gedcom_id} INDI")
+
+        # Name - format as "First /Last/"
+        first_name = escape_gedcom_value(ind.first_name or "")
+        last_name = escape_gedcom_value(ind.last_name or "")
+        lines.append(f"1 NAME {first_name} /{last_name}/")
+        if first_name:
+            lines.append(f"2 GIVN {first_name}")
+        if last_name:
+            lines.append(f"2 SURN {last_name}")
+
+        # Sex
+        if ind.sex:
+            lines.append(f"1 SEX {ind.sex}")
+
+        # Events for this individual
+        for event in ind.events:
+            if event.event_type in ["BIRT", "DEAT", "BURI"]:
+                lines.append(f"1 {event.event_type}")
+                if event.event_date:
+                    lines.append(f"2 DATE {format_gedcom_date(event.event_date)}")
+                if event.place:
+                    lines.append(f"2 PLAC {escape_gedcom_value(event.place)}")
+
+        # Family links - as child
+        for fam in ind.families_as_child:
+            if fam.id in fam_id_map:
+                lines.append(f"1 FAMC {fam_id_map[fam.id]}")
+
+        # Family links - as spouse
+        spouse_families = []
+        for fam in ind.families_as_spouse:
+            spouse_families.append(fam)
+        for fam in ind.families_as_spouse2:
+            spouse_families.append(fam)
+
+        for fam in spouse_families:
+            if fam.id in fam_id_map:
+                lines.append(f"1 FAMS {fam_id_map[fam.id]}")
+
+    # Export families
+    for fam in families:
+        gedcom_id = fam_id_map[fam.id]
+        lines.append(f"0 {gedcom_id} FAM")
+
+        # Husband (spouse1)
+        if fam.spouse1_id and fam.spouse1_id in ind_id_map:
+            lines.append(f"1 HUSB {ind_id_map[fam.spouse1_id]}")
+
+        # Wife (spouse2)
+        if fam.spouse2_id and fam.spouse2_id in ind_id_map:
+            lines.append(f"1 WIFE {ind_id_map[fam.spouse2_id]}")
+
+        # Children
+        for child in fam.children:
+            if child.id in ind_id_map:
+                lines.append(f"1 CHIL {ind_id_map[child.id]}")
+
+        # Marriage events
+        for event in fam.events:
+            if event.event_type == "MARR":
+                lines.append("1 MARR")
+                if event.event_date:
+                    lines.append(f"2 DATE {format_gedcom_date(event.event_date)}")
+                if event.place:
+                    lines.append(f"2 PLAC {escape_gedcom_value(event.place)}")
+
+    # GEDCOM trailer
+    lines.append("0 TRLR")
+
+    return "\n".join(lines)

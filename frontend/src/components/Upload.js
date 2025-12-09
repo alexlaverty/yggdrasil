@@ -26,6 +26,9 @@ function Upload() {
   const [geocodeLoading, setGeocodeLoading] = useState(false);
   const [geocodeResults, setGeocodeResults] = useState(null);
 
+  // GEDCOM export state
+  const [gedcomExportLoading, setGedcomExportLoading] = useState(false);
+
   // Load GitHub config and geocode stats on mount
   useEffect(() => {
     const loadGithubConfig = async () => {
@@ -80,6 +83,43 @@ function Upload() {
       }
     } finally {
       setGeocodeLoading(false);
+    }
+  };
+
+  // Handle GEDCOM export
+  const handleGedcomExport = async () => {
+    setGedcomExportLoading(true);
+    try {
+      const response = await axios.get('http://localhost:8001/api/export-gedcom', {
+        responseType: 'blob'
+      });
+
+      // Create download link
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+
+      // Get filename from Content-Disposition header or generate one
+      const contentDisposition = response.headers['content-disposition'];
+      let filename = 'yggdrasil_export.ged';
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="(.+)"/);
+        if (filenameMatch) {
+          filename = filenameMatch[1];
+        }
+      }
+
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+
+      setToast({ message: 'GEDCOM file exported successfully!', type: 'success' });
+    } catch (err) {
+      setToast({ message: err.response?.data?.detail || 'Error exporting GEDCOM file', type: 'error' });
+    } finally {
+      setGedcomExportLoading(false);
     }
   };
 
@@ -359,6 +399,67 @@ function Upload() {
               {loading ? 'Processing GEDCOM File...' : 'Upload and Import'}
             </button>
           </form>
+        </div>
+
+        {/* GEDCOM Export Section */}
+        <h2 style={{ marginTop: '50px' }}>GEDCOM Export</h2>
+
+        <div style={{
+          backgroundColor: '#f8f9fa',
+          padding: '20px',
+          borderRadius: '8px',
+          marginBottom: '30px',
+          border: '1px solid #dee2e6'
+        }}>
+          <h3 style={{ marginTop: 0, fontSize: '18px', color: '#495057' }}>About GEDCOM Export</h3>
+          <p style={{ color: '#6c757d', lineHeight: '1.6', marginBottom: '10px' }}>
+            Export your entire family tree as a standard GEDCOM file that can be imported into other
+            genealogy software like Ancestry.com, FamilySearch, Gramps, or any GEDCOM-compatible application.
+          </p>
+          <p style={{ color: '#6c757d', lineHeight: '1.6', margin: 0 }}>
+            <strong>Included data:</strong> All individuals, families, births, deaths, burials, marriages,
+            and their dates and places.
+          </p>
+        </div>
+
+        <div style={{
+          backgroundColor: 'white',
+          padding: '30px',
+          borderRadius: '8px',
+          border: '2px solid #9b59b6'
+        }}>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '48px', marginBottom: '15px' }}>📋</div>
+            <h3 style={{ marginTop: 0 }}>Export as GEDCOM</h3>
+            <p style={{ color: '#6c757d', marginBottom: '20px' }}>
+              Download your family tree in standard GEDCOM format (.ged file).
+            </p>
+            <button
+              onClick={handleGedcomExport}
+              disabled={gedcomExportLoading}
+              style={{
+                width: '100%',
+                padding: '14px 24px',
+                backgroundColor: '#9b59b6',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: gedcomExportLoading ? 'not-allowed' : 'pointer',
+                fontSize: '16px',
+                fontWeight: 'bold',
+                opacity: gedcomExportLoading ? 0.6 : 1,
+                transition: 'background-color 0.3s'
+              }}
+              onMouseEnter={(e) => {
+                if (!gedcomExportLoading) e.currentTarget.style.backgroundColor = '#8e44ad';
+              }}
+              onMouseLeave={(e) => {
+                if (!gedcomExportLoading) e.currentTarget.style.backgroundColor = '#9b59b6';
+              }}
+            >
+              {gedcomExportLoading ? 'Exporting...' : 'Download GEDCOM File'}
+            </button>
+          </div>
         </div>
 
         {/* Backup & Restore Section */}

@@ -1,11 +1,13 @@
-"""API routes for GEDCOM file upload."""
+"""API routes for GEDCOM file upload and export."""
 
 import io
-from fastapi import APIRouter, HTTPException, UploadFile, File
+from datetime import datetime
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi.responses import Response
 
-from database import SessionLocal
+from database import SessionLocal, get_db
 from services.storage import minio_client
-from services.gedcom import import_gedcom
+from services.gedcom import import_gedcom, export_gedcom
 
 router = APIRouter(tags=["upload"])
 
@@ -40,3 +42,27 @@ async def upload_file(file: UploadFile = File(...)):
         db.close()
 
     return {"message": "GEDCOM uploaded and parsed successfully"}
+
+
+@router.get("/export-gedcom")
+async def export_gedcom_file(db=Depends(get_db)):
+    """Export all data as a valid GEDCOM file."""
+    try:
+        gedcom_content = export_gedcom(db)
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"yggdrasil_export_{timestamp}.ged"
+
+        return Response(
+            content=gedcom_content,
+            media_type="application/x-gedcom",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+            },
+        )
+    except Exception as e:
+        print(f"[ERROR] Failed to export GEDCOM: {str(e)}")
+        import traceback
+
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
