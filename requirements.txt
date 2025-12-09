@@ -1,0 +1,4 @@
+# Test dependencies for running pytest tests
+pytest>=7.4.3
+requests>=2.31.0
+python-gedcom>=1.0.0

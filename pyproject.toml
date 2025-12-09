@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "yggdrasil"
+version = "1.0.0"
+description = "A self-hosted family history and genealogy application"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+
+dependencies = [
+    "pytest>=7.4.3",
+    "requests>=2.31.0",
+    "python-gedcom>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "flake8>=6.0.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-v"
+
+[tool.flake8]
+max-line-length = 120
+ignore = ["E501", "W503"]
+exclude = [".git", "__pycache__", "node_modules", ".venv"]
+
+[tool.black]
+line-length = 88
+target-version = ["py311"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"

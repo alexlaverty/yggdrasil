@@ -19,6 +19,12 @@ class UpdatePersonRequest(BaseModel):
     last_name: Optional[str] = None
     sex: Optional[str] = None
     profile_image_id: Optional[int] = None
+    birth_date: Optional[str] = None
+    birth_place: Optional[str] = None
+    death_date: Optional[str] = None
+    death_place: Optional[str] = None
+    burial_date: Optional[str] = None
+    burial_place: Optional[str] = None
 
 
 class AddRelationshipRequest(BaseModel):

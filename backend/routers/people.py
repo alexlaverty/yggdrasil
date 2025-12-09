@@ -269,6 +269,72 @@ async def update_person(
             else:
                 person.profile_image_id = None
 
+        # Handle birth event update/creation
+        if person_data.birth_date is not None or person_data.birth_place is not None:
+            birth_event = None
+            for event in person.events:
+                if event.event_type == "BIRT":
+                    birth_event = event
+                    break
+            if not birth_event:
+                birth_event = Event(event_type="BIRT")
+                db.add(birth_event)
+                db.flush()
+                person.events.append(birth_event)
+            if person_data.birth_date:
+                try:
+                    birth_event.event_date = datetime.strptime(
+                        person_data.birth_date, "%Y-%m-%d"
+                    ).date()
+                except ValueError:
+                    pass
+            if person_data.birth_place:
+                birth_event.place = person_data.birth_place
+
+        # Handle death event update/creation
+        if person_data.death_date is not None or person_data.death_place is not None:
+            death_event = None
+            for event in person.events:
+                if event.event_type == "DEAT":
+                    death_event = event
+                    break
+            if not death_event:
+                death_event = Event(event_type="DEAT")
+                db.add(death_event)
+                db.flush()
+                person.events.append(death_event)
+            if person_data.death_date:
+                try:
+                    death_event.event_date = datetime.strptime(
+                        person_data.death_date, "%Y-%m-%d"
+                    ).date()
+                except ValueError:
+                    pass
+            if person_data.death_place:
+                death_event.place = person_data.death_place
+
+        # Handle burial event update/creation
+        if person_data.burial_date is not None or person_data.burial_place is not None:
+            burial_event = None
+            for event in person.events:
+                if event.event_type == "BURI":
+                    burial_event = event
+                    break
+            if not burial_event:
+                burial_event = Event(event_type="BURI")
+                db.add(burial_event)
+                db.flush()
+                person.events.append(burial_event)
+            if person_data.burial_date:
+                try:
+                    burial_event.event_date = datetime.strptime(
+                        person_data.burial_date, "%Y-%m-%d"
+                    ).date()
+                except ValueError:
+                    pass
+            if person_data.burial_place:
+                burial_event.place = person_data.burial_place
+
         db.commit()
         db.refresh(person)
 
@@ -350,20 +416,37 @@ async def add_parent(
         raise HTTPException(status_code=404, detail="Parent not found")
 
     try:
-        existing_family = (
-            child.families_as_child[0] if child.families_as_child else None
-        )
+        # Check if child already has a family
+        child_family = child.families_as_child[0] if child.families_as_child else None
 
-        if existing_family:
-            if not existing_family.spouse1:
-                existing_family.spouse1 = parent
-            elif not existing_family.spouse2:
-                existing_family.spouse2 = parent
-            else:
-                raise HTTPException(
-                    status_code=400, detail="Child already has two parents"
-                )
+        # Check if parent already has a family as a spouse
+        parent_families = parent.families_as_spouse + parent.families_as_spouse2
+
+        if child_family:
+            # Child already has a family - add parent to it if not already there
+            if parent.id not in [child_family.spouse1_id, child_family.spouse2_id]:
+                if not child_family.spouse1_id:
+                    child_family.spouse1 = parent
+                elif not child_family.spouse2_id:
+                    child_family.spouse2 = parent
+                    # Now we have both spouses - create marriage event if none exists
+                    has_marriage = any(e.event_type == "MARR" for e in child_family.events)
+                    if not has_marriage:
+                        marriage_event = Event(event_type="MARR")
+                        db.add(marriage_event)
+                        db.flush()
+                        child_family.events.append(marriage_event)
+                else:
+                    raise HTTPException(
+                        status_code=400, detail="Child already has two parents"
+                    )
+        elif parent_families:
+            # Parent has a family - add child to it
+            parent_family = parent_families[0]
+            if child not in parent_family.children:
+                parent_family.children.append(child)
         else:
+            # No existing family - create new one
             new_family = Family()
             new_family.spouse1 = parent
             db.add(new_family)
