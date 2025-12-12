@@ -1,4 +1,4 @@
-"""Chat endpoint supporting multiple AI providers (Claude and Gemini) with tool calling."""
+"""Chat endpoint supporting multiple AI providers (Claude, Gemini, and DeepSeek) with tool calling."""
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -6,6 +6,7 @@ from typing import List, Optional, Dict, Any
 import os
 import anthropic
 import google.generativeai as genai
+from openai import OpenAI
 
 # Import MCP tool functions directly
 from routers.mcp import (
@@ -212,6 +213,110 @@ GEMINI_TOOLS = [
 ]
 
 
+# Tool definitions for DeepSeek API (OpenAI format)
+DEEPSEEK_TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "find_person_by_name",
+            "description": "Find a person in the genealogy database by their first name and/or last name. Returns matching people with their IDs and birth dates.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "first_name": {
+                        "type": "string",
+                        "description": "The person's first name (optional)"
+                    },
+                    "last_name": {
+                        "type": "string",
+                        "description": "The person's last name (optional)"
+                    }
+                }
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_person_details",
+            "description": "Get detailed information about a person including birth, death, parents, spouses, and children.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "person_id": {
+                        "type": "integer",
+                        "description": "The database ID of the person"
+                    }
+                },
+                "required": ["person_id"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_siblings",
+            "description": "Get all siblings of a person (people who share the same parents).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "person_id": {
+                        "type": "integer",
+                        "description": "The database ID of the person"
+                    }
+                },
+                "required": ["person_id"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_by_birth_location",
+            "description": "Find all people born in a specific location. Partial matches are allowed.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "location": {
+                        "type": "string",
+                        "description": "The birth location to search for"
+                    }
+                },
+                "required": ["location"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_birth_date",
+            "description": "Get the birth date and location of a person.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "person_id": {
+                        "type": "integer",
+                        "description": "The database ID of the person"
+                    }
+                },
+                "required": ["person_id"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_all_people",
+            "description": "List all people in the genealogy database with their IDs and birth years. Returns up to 50 people.",
+            "parameters": {
+                "type": "object",
+                "properties": {}
+            }
+        }
+    }
+]
+
+
 def chat_with_claude(messages: List[Dict], all_tool_calls: List) -> str:
     """Handle chat using Anthropic Claude API."""
     api_key = os.getenv("ANTHROPIC_API_KEY")
@@ -408,19 +513,116 @@ def chat_with_gemini(messages: List[Dict], all_tool_calls: List) -> str:
     )
 
 
+def chat_with_deepseek(messages: List[Dict], all_tool_calls: List) -> str:
+    """Handle chat using DeepSeek API (OpenAI-compatible)."""
+    api_key = os.getenv("DEEPSEEK_API_KEY")
+    if not api_key:
+        raise HTTPException(
+            status_code=500,
+            detail="DEEPSEEK_API_KEY not configured. Please add it to your .env file."
+        )
+
+    # Get model from environment (default to deepseek-chat)
+    model = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
+
+    # Initialize OpenAI client with DeepSeek base URL
+    client = OpenAI(
+        api_key=api_key,
+        base_url="https://api.deepseek.com"
+    )
+
+    # Convert messages to OpenAI format (add system message)
+    openai_messages = [{"role": "system", "content": SYSTEM_PROMPT}] + messages
+
+    # Agentic loop: continue until we get a text response
+    max_iterations = 10
+    iteration = 0
+
+    while iteration < max_iterations:
+        iteration += 1
+
+        # Call DeepSeek API
+        response = client.chat.completions.create(
+            model=model,
+            messages=openai_messages,
+            tools=DEEPSEEK_TOOLS,
+            tool_choice="auto"
+        )
+
+        message = response.choices[0].message
+
+        # Check if DeepSeek wants to use tools
+        if message.tool_calls:
+            # Add assistant's message to conversation
+            openai_messages.append({
+                "role": "assistant",
+                "content": message.content or "",
+                "tool_calls": [
+                    {
+                        "id": tc.id,
+                        "type": "function",
+                        "function": {
+                            "name": tc.function.name,
+                            "arguments": tc.function.arguments
+                        }
+                    }
+                    for tc in message.tool_calls
+                ]
+            })
+
+            # Execute each tool
+            for tool_call in message.tool_calls:
+                tool_name = tool_call.function.name
+                import json
+                tool_args = json.loads(tool_call.function.arguments)
+
+                print(f"[DeepSeek] Executing tool: {tool_name} with input: {tool_args}")
+                all_tool_calls.append({
+                    "name": tool_name,
+                    "input": tool_args
+                })
+
+                # Execute the tool
+                try:
+                    tool_function = TOOL_FUNCTIONS[tool_name]
+                    result = tool_function(**tool_args)
+
+                    # Add tool result to conversation
+                    openai_messages.append({
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "content": str(result)
+                    })
+                except Exception as e:
+                    openai_messages.append({
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "content": f"Error executing tool: {str(e)}"
+                    })
+
+        else:
+            # Got final text response
+            return message.content or ""
+
+    raise HTTPException(
+        status_code=500,
+        detail="Maximum tool execution iterations reached"
+    )
+
+
 @router.post("")
 async def chat(request: ChatRequest):
     """
-    Chat endpoint that supports multiple AI providers (Claude or Gemini).
+    Chat endpoint that supports multiple AI providers (Claude, Gemini, or DeepSeek).
     Provider is selected via AI_PROVIDER environment variable.
     """
     # Get provider from environment
     provider = os.getenv("AI_PROVIDER", "claude").lower()
 
-    if provider not in ["claude", "gemini"]:
+    if provider not in ["claude", "gemini", "deepseek"]:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid AI_PROVIDER: {provider}. Must be 'claude' or 'gemini'."
+            detail=f"Invalid AI_PROVIDER: {provider}. Must be 'claude', 'gemini', or 'deepseek'."
         )
 
     # Convert request messages to provider format
@@ -436,8 +638,10 @@ async def chat(request: ChatRequest):
     try:
         if provider == "claude":
             response_text = chat_with_claude(messages, all_tool_calls)
-        else:  # gemini
+        elif provider == "gemini":
             response_text = chat_with_gemini(messages, all_tool_calls)
+        else:  # deepseek
+            response_text = chat_with_deepseek(messages, all_tool_calls)
 
         return ChatResponse(
             response=response_text,
