@@ -18,6 +18,7 @@ import MediaDetail from './components/MediaDetail';
 import EventDetail from './components/EventDetail';
 import BulkMediaUpload from './components/BulkMediaUpload';
 import Map from './components/Map';
+import Chat from './components/Chat';
 
 function App() {
   return (
@@ -41,6 +42,7 @@ function App() {
             <Link to="/media-list">Media</Link>
             <Link to="/places">Places</Link>
             <Link to="/map">Map</Link>
+            <Link to="/chat">Chat</Link>
             <Link to="/birth">Birth</Link>
             <Link to="/death">Death</Link>
             <Link to="/burial">Burial</Link>
@@ -59,6 +61,7 @@ function App() {
               <Route path="/places" element={<Places />} />
               <Route path="/place/:placeName" element={<PlaceDetail />} />
               <Route path="/map" element={<Map />} />
+              <Route path="/chat" element={<Chat />} />
               <Route path="/media-list" element={<MediaList />} />
               <Route path="/media/:mediaId" element={<MediaDetail />} />
               <Route path="/birth" element={<Birth />} />

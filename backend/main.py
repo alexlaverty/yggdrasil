@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from routers import (
     people, families, events, places,
-    media, backup, upload, nav, map, mcp
+    media, backup, upload, nav, map, mcp, chat
 )
 
 app = FastAPI(title="Ancestry API", version="1.0.0")
@@ -28,6 +28,7 @@ app.include_router(backup.router, prefix="/api")
 app.include_router(upload.router, prefix="/api")
 app.include_router(nav.router, prefix="/api")
 app.include_router(map.router, prefix="/api")
+app.include_router(chat.router, prefix="/api")
 
 
 # ===========================
