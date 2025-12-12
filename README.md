@@ -38,6 +38,26 @@ A self-hosted family history and genealogy application. Import GEDCOM files, exp
 - Backup and restore functionality
 - Database export/import
 
+### MCP Server
+
+Yggdrasil exposes a Model Context Protocol (MCP) server that allows AI agents (such as Roo Code) to query and explore the genealogy database using natural language tools.
+
+The MCP server is implemented using FastMCP and runs alongside the FastAPI backend.
+
+Roo Code MCP Config :
+
+```
+{
+  "mcpServers": {
+    "yggdrasil-genealogy": {
+      "url": "http://localhost:8001/mcp/sse",
+      "transport": "sse",
+      "alwaysAllow": []
+    }
+  }
+}
+```
+
 ## Tech Stack
 
 ### Backend

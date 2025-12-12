@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(find:*)",
-      "Bash(pytest:*)"
+      "Bash(pytest:*)",
+      "Bash(docker compose logs:*)",
+      "Bash(docker compose:*)"
     ]
   }
 }
