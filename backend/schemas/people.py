@@ -12,6 +12,8 @@ class CreatePersonRequest(BaseModel):
     birth_place: Optional[str] = None
     death_date: Optional[str] = None
     death_place: Optional[str] = None
+    burial_date: Optional[str] = None
+    burial_place: Optional[str] = None
 
 
 class UpdatePersonRequest(BaseModel):

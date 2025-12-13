@@ -70,6 +70,12 @@ async def get_person_details(person_id: int, db: Session = Depends(get_db)):
         if event.event_type == "DEAT":
             deaths.append({"date": event.event_date, "place": event.place})
 
+    # Get burial events
+    burials = []
+    for event in person.events:
+        if event.event_type == "BURI":
+            burials.append({"date": event.event_date, "place": event.place})
+
     # Get family relationships (as spouse)
     families_as_spouse = person.families_as_spouse + person.families_as_spouse2
     marriages = []
@@ -172,6 +178,7 @@ async def get_person_details(person_id: int, db: Session = Depends(get_db)):
         "profile_image_id": person.profile_image_id,
         "births": births,
         "deaths": deaths,
+        "burials": burials,
         "marriages": marriages,
         "spouses": spouses,
         "children": children,
@@ -225,6 +232,22 @@ async def create_person(
             db.add(death_event)
             db.flush()
             new_person.events.append(death_event)
+
+        # Add burial event if provided
+        if person_data.burial_date or person_data.burial_place:
+            burial_event = Event(event_type="BURI")
+            if person_data.burial_date:
+                try:
+                    burial_event.event_date = datetime.strptime(
+                        person_data.burial_date, "%Y-%m-%d"
+                    ).date()
+                except ValueError:
+                    pass
+            if person_data.burial_place:
+                burial_event.place = person_data.burial_place
+            db.add(burial_event)
+            db.flush()
+            new_person.events.append(burial_event)
 
         db.commit()
         db.refresh(new_person)

@@ -323,6 +323,23 @@ function PersonProfile() {
         )}
       </section>
 
+      {/* Burial Events */}
+      <section style={{ marginBottom: '30px', padding: '15px', backgroundColor: '#f5f5f5', borderRadius: '5px' }}>
+        <h3>Burial</h3>
+        {person.burials && person.burials.length > 0 ? (
+          <ul style={{ listStyle: 'none', padding: '0' }}>
+            {person.burials.map((burial, idx) => (
+              <li key={idx} style={{ paddingBottom: '10px' }}>
+                <strong>Date:</strong> {burial.date || 'Unknown'}<br />
+                <strong>Place:</strong> {burial.place || 'Unknown'}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p>No burial information available.</p>
+        )}
+      </section>
+
       {/* Marriage Events */}
       <section style={{ marginBottom: '30px', padding: '15px', backgroundColor: '#f5f5f5', borderRadius: '5px' }}>
         <h3>Marriage</h3>

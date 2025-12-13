@@ -16,7 +16,9 @@ function PersonForm() {
     birth_date: '',
     birth_place: '',
     death_date: '',
-    death_place: ''
+    death_place: '',
+    burial_date: '',
+    burial_place: ''
   });
 
   const [profileImageId, setProfileImageId] = useState(null);
@@ -36,7 +38,9 @@ function PersonForm() {
             birth_date: res.data.births && res.data.births[0] ? res.data.births[0].date : '',
             birth_place: res.data.births && res.data.births[0] ? res.data.births[0].place : '',
             death_date: res.data.deaths && res.data.deaths[0] ? res.data.deaths[0].date : '',
-            death_place: res.data.deaths && res.data.deaths[0] ? res.data.deaths[0].place : ''
+            death_place: res.data.deaths && res.data.deaths[0] ? res.data.deaths[0].place : '',
+            burial_date: res.data.burials && res.data.burials[0] ? res.data.burials[0].date : '',
+            burial_place: res.data.burials && res.data.burials[0] ? res.data.burials[0].place : ''
           });
           setProfileImageId(res.data.profile_image_id || null);
           setLoading(false);
@@ -107,7 +111,13 @@ function PersonForm() {
         const updateData = {
           first_name: formData.first_name,
           last_name: formData.last_name,
-          sex: formData.sex
+          sex: formData.sex,
+          birth_date: formData.birth_date || null,
+          birth_place: formData.birth_place || null,
+          death_date: formData.death_date || null,
+          death_place: formData.death_place || null,
+          burial_date: formData.burial_date || null,
+          burial_place: formData.burial_place || null
         };
         const response = await axios.put(`http://localhost:8001/api/people/${personId}`, updateData);
         setToast({ message: `${formData.first_name} ${formData.last_name} updated successfully!`, type: 'success' });
@@ -292,68 +302,101 @@ function PersonForm() {
           </div>
         </div>
 
-        {/* Vital Events Section - Only for new person */}
-        {!isEditMode && (
-          <div className="form-section">
-            <div className="form-section-title">Vital Events</div>
+        {/* Vital Events Section */}
+        <div className="form-section">
+          <div className="form-section-title">Vital Events</div>
 
-            {/* Birth Information */}
-            <div className="form-row">
-              <div>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
-                  Birth Date
-                </label>
-                <input
-                  type="date"
-                  name="birth_date"
-                  value={formData.birth_date}
-                  onChange={handleChange}
-                  style={{ width: '100%', padding: '8px', fontSize: '16px', borderRadius: '5px', border: '1px solid #ccc' }}
-                />
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
-                  Birth Place
-                </label>
-                <input
-                  type="text"
-                  name="birth_place"
-                  value={formData.birth_place}
-                  onChange={handleChange}
-                  style={{ width: '100%', padding: '8px', fontSize: '16px', borderRadius: '5px', border: '1px solid #ccc' }}
-                />
-              </div>
+          {/* Birth Information */}
+          <div className="form-row">
+            <div>
+              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+                Birth Date
+              </label>
+              <input
+                type="date"
+                name="birth_date"
+                value={formData.birth_date}
+                onChange={handleChange}
+                style={{ width: '100%', padding: '8px', fontSize: '16px', borderRadius: '5px', border: '1px solid #ccc' }}
+              />
             </div>
-
-            {/* Death Information */}
-            <div className="form-row">
-              <div>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
-                  Death Date
-                </label>
-                <input
-                  type="date"
-                  name="death_date"
-                  value={formData.death_date}
-                  onChange={handleChange}
-                  style={{ width: '100%', padding: '8px', fontSize: '16px', borderRadius: '5px', border: '1px solid #ccc' }}
-                />
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
-                  Death Place
-                </label>
-                <input
-                  type="text"
-                  name="death_place"
-                  value={formData.death_place}
-                  onChange={handleChange}
-                  style={{ width: '100%', padding: '8px', fontSize: '16px', borderRadius: '5px', border: '1px solid #ccc' }}
-                />
-              </div>
+            <div>
+              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+                Birth Place
+              </label>
+              <input
+                type="text"
+                name="birth_place"
+                value={formData.birth_place}
+                onChange={handleChange}
+                style={{ width: '100%', padding: '8px', fontSize: '16px', borderRadius: '5px', border: '1px solid #ccc' }}
+              />
             </div>
           </div>
-        )}
+
+          {/* Death Information */}
+          <div className="form-row">
+            <div>
+              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+                Death Date
+              </label>
+              <input
+                type="date"
+                name="death_date"
+                value={formData.death_date}
+                onChange={handleChange}
+                style={{ width: '100%', padding: '8px', fontSize: '16px', borderRadius: '5px', border: '1px solid #ccc' }}
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+                Death Place
+              </label>
+              <input
+                type="text"
+                name="death_place"
+                value={formData.death_place}
+                onChange={handleChange}
+                style={{ width: '100%', padding: '8px', fontSize: '16px', borderRadius: '5px', border: '1px solid #ccc' }}
+              />
+            </div>
+          </div>
+
+          {/* Burial Information */}
+          <div className="form-row">
+            <div>
+              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+                Burial Date
+              </label>
+              <input
+                type="date"
+                name="burial_date"
+                value={formData.burial_date}
+                onChange={handleChange}
+                style={{ width: '100%', padding: '8px', fontSize: '16px', borderRadius: '5px', border: '1px solid #ccc' }}
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+                Burial Place
+              </label>
+              <input
+                type="text"
+                name="burial_place"
+                value={formData.burial_place}
+                onChange={handleChange}
+                style={{ width: '100%', padding: '8px', fontSize: '16px', borderRadius: '5px', border: '1px solid #ccc' }}
+              />
+            </div>
+          </div>
+
+          {/* Note about marriage events */}
+          {isEditMode && (
+            <div style={{ marginTop: '15px', padding: '10px', backgroundColor: '#e3f2fd', borderRadius: '5px', fontSize: '14px', color: '#1976d2' }}>
+              <strong>Note:</strong> Marriage events are associated with families. To edit marriage information, please visit the family detail page.
+            </div>
+          )}
+        </div>
 
         <div style={{ display: 'flex', gap: '10px', marginTop: '2rem' }}>
           <button
